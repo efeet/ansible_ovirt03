@@ -1,0 +1,45 @@
+--- 
+- name: Execute script to get Hypervisor with more Free Mem.
+  local_action: script /var/lib/awx/projects/RHV_VMs/rhv_vms_auto_resources/get_info_api.bash
+
+- name: "Create VM {{ current_vm.name }}"
+  ovirt_vm:
+    auth: "{{ ovirt_auth }}"
+    state: "running"
+    name: "{{ current_vm.name }}"
+    clone: true
+    cluster: CL_CLIENT
+    host: "{{ lookup('file', '/var/lib/awx/projects/RHV_VMs/rhv_vms_auto_resources/best_hypervisor.yml') }}"
+    storage_domain: "{{ lookup('file', '/var/lib/awx/projects/RHV_VMs/rhv_vms_auto_resources/best_storage.yml') }}"
+    template: "{{ current_vm.template }}"
+    memory: "{{ current_vm.memory }}"
+    memory_max: "{{ current_vm.memory }}"
+    memory_guaranteed: "1MiB"
+    cpu_cores: "{{ current_vm.cores }}"
+    #cpu_sockets: "{{ current_vm.sockets | default(current_vm.profile.sockets) | default(omit) }}"
+    comment: "{{ current_vm.comment }}"
+    type: server
+    high_availability: true
+    nics:
+      - name: nic1
+        profile_name: "{{ current_vm.vnet }}"
+    cloud_init:
+      user_name: Administrator
+      root_password: AdminAdmin.123
+      host_name: "{{ current_vm.name }}"
+      custom_script: |
+        write_files:
+          content: |
+            rem cmd
+            netsh interface ipv4 set address name=Ethernet source=static address={{ current_vm.ipaddr }}/{{ current_vm.prefix }} gateway={{ current_vm.defgw }}
+            netsh advfirewall set allprofiles state off
+            reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Terminal Server" /v fDenyTSConnections /t REG_DWORD /d 0 /f
+            reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" /v SecurityLayer /t REG_DWORD /d 0 /f
+            reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp" /v UserAuthentication /t REG_DWORD /d 0 /f
+            net user USERNAMEHERE /Passwordchg:yes
+            shutdown /r /t 1
+          path: C:\Program Files\Cloudbase Solutions\Cloudbase-Init\LocalScripts\config.bat
+          permissions: '0466'
+    timeout: 300
+    wait: true
+

@@ -1,0 +1,75 @@
+---
+- hosts: localhost
+  gather_facts: no
+
+  tasks:
+    - name: Login to oVirt
+      ovirt_auth:
+        url: "{{ engine_url | default(lookup('env','OVIRT_URL')) | default(omit) }}"
+        hostname: "{{ engine_fqdn | default(lookup('env','OVIRT_HOSTNAME')) | default(omit) }}"
+        username: "{{ engine_user | default(lookup('env','OVIRT_USERNAME')) | default(omit) }}"
+        password: "{{ engine_password | default(lookup('env','OVIRT_PASSWORD')) | default(omit) }}"
+        ca_file: "{{ engine_cafile | default(lookup('env','OVIRT_CAFILE')) | default(omit) }}"
+        insecure: "{{ engine_insecure | default(true) }}"
+      when: ovirt_auth is undefined or not ovirt_auth
+      register: loggedin
+
+    - name: Generate VMs info major of two.
+      set_fact: 
+        vms:
+          name: "{{ vm_name }}{{ item }}"
+          template: "{{ dd_template }}"
+          memory: "{{ dd_memory }}"
+          cores: "{{ dpb_cores }}"
+          comment: "Requerimiento: {{ txt_num_tk }} - Solicitante: {{ txt_who_request }}"
+          vnet: "{{ vnet_name }}"
+          ipaddr: "{{ txt_ips_addrs.split(',')[item | int - 1] }}"
+          prefix: "{{ dd_prefix }}"
+          defgw: "{{ txt_defgw }}" 
+      #with_items: "{{ range(1, txt_numbers_vms + 1) | list }}"
+      with_sequence: start=1 end={{ txt_numbers_vms }} format=%02d
+      when: txt_numbers_vms > 1
+      register: tmp_vms
+
+    - name: Generate VMs info for one vm.
+      set_fact: 
+        vms:
+          name: "{{ vm_name }}"
+          template: "{{ dd_template }}"
+          memory: "{{ dd_memory }}"
+          cores: "{{ dpb_cores }}"
+          comment: "Requerimiento: {{ txt_num_tk }} - Solicitante: {{ txt_who_request }}"
+          vnet: "{{ vnet_name }}"
+          ipaddr: "{{ txt_ips_addrs.split(',')[item | int - 1] }}"
+          prefix: "{{ dd_prefix }}"
+          defgw: "{{ txt_defgw }}" 
+      #with_items: "{{ range(1, txt_numbers_vms + 1) | list }}"
+      with_sequence: start=1 end={{ txt_numbers_vms }} format=%02d
+      when: txt_numbers_vms == 1
+      register: tmp_one_vm
+
+    - name: Split list of VMs
+      set_fact: 
+        create_vms: "{{ create_vms | default([]) + [ { 'name': item.ansible_facts.vms.name, 'template': item.ansible_facts.vms.template, 'memory': item.ansible_facts.vms.memory, 'cores': item.ansible_facts.vms.cores, 'comment': item.ansible_facts.vms.comment, 'vnet': item.ansible_facts.vms.vnet, 'ipaddr': item.ansible_facts.vms.ipaddr, 'prefix': item.ansible_facts.vms.prefix, 'defgw': item.ansible_facts.vms.defgw } ] }}"
+      with_items: "{{ tmp_vms.results }}"
+      when: txt_numbers_vms > 1
+
+    - name: Split list of VM
+      set_fact: 
+        create_vms: "{{ create_vms | default([]) + [ { 'name': item.ansible_facts.vms.name, 'template': item.ansible_facts.vms.template, 'memory': item.ansible_facts.vms.memory, 'cores': item.ansible_facts.vms.cores, 'comment': item.ansible_facts.vms.comment, 'vnet': item.ansible_facts.vms.vnet, 'ipaddr': item.ansible_facts.vms.ipaddr, 'prefix': item.ansible_facts.vms.prefix, 'defgw': item.ansible_facts.vms.defgw } ] }}"
+      with_items: "{{ tmp_one_vm.results }}"
+      when: txt_numbers_vms == 1
+
+    - name: Create VMs RHEL
+      include_tasks: vm_state_running_rhel.yml
+      when: create_vms is defined and os_type == "RHEL"
+
+    - name: Create VMs WIN
+      include_tasks: vm_state_running_win.yml
+      when: create_vms is defined and os_type == "WIN"
+
+    - name: Logout from oVirt
+      ovirt_auth:
+        state: absent
+        ovirt_auth: "{{ ovirt_auth }}"
+      when: not loggedin.skipped | default(false)

@@ -1,0 +1,6 @@
+---
+- name: Invoking playbook to create VM
+  include_tasks: create_vms_win.yml
+  with_items: "{{ create_vms }}"
+  loop_control:
+    loop_var: "current_vm"

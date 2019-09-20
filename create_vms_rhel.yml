@@ -1,0 +1,55 @@
+---
+- name: Execute script to get Hypervisor with more Free Mem.
+  local_action: script /var/lib/awx/projects/RHV_VMs/rhv_vms_auto_resources/get_info_api.bash
+
+- name: "Create VM {{ current_vm.name }}"
+  ovirt_vm:
+    auth: "{{ ovirt_auth }}"
+    state: "running"
+    name: "{{ current_vm.name }}"
+    clone: true
+    cluster: CL_CLIENT
+    host: "{{ lookup('file', '/var/lib/awx/projects/RHV_VMs/rhv_vms_auto_resources/best_hypervisor.yml') }}"
+    storage_domain: "{{ lookup('file', '/var/lib/awx/projects/RHV_VMs/rhv_vms_auto_resources/best_storage.yml') }}"
+    template: "{{ current_vm.template }}"
+    memory: "{{ current_vm.memory }}"
+    memory_max: "{{ current_vm.memory }}"
+    memory_guaranteed: "1MiB"
+    cpu_cores: "{{ current_vm.cores }}"
+    #cpu_sockets: "{{ current_vm.sockets | default(current_vm.profile.sockets) | default(omit) }}"
+    comment: "{{ current_vm.comment }}"
+    type: server
+    operating_system: rhel_7x64
+    high_availability: true
+    nics:
+      - name: nic1
+        profile_name: "{{ current_vm.vnet }}"
+    cloud_init:
+      host_name: "{{ current_vm.name }}"
+      user_name: root
+      root_password: "redhat"
+      custom_script: |
+        runcmd:
+          - echo "net.ipv6.conf.all.disable_ipv6 = 1" >> /etc/sysctl.conf
+          - echo "net.ipv6.conf.default.disable_ipv6 = 1" >> /etc/sysctl.conf
+          - nmcli --fields UUID con show | awk '!/UUID/ {print}' | while read line; do nmcli con delete uuid $line; done
+          - nmcli con add type ethernet con-name eth0 ifname eth0
+          - nmcli con mod eth0
+            connection.autoconnect yes
+            ipv6.method ignore
+            ipv4.method manual
+            ipv4.addresses "{{ current_vm.ipaddr }}"/"{{ current_vm.prefix }}"
+            ipv4.gateway "{{ current_vm.defgw }}"
+            ipv4.dns-search "example.com lab.example.com"
+          - nmcli con up eth0
+          - systemctl restart systemd-sysctl
+          - yum -y remove cloud-init
+          - head -11 /etc/fstab > /tmp/fstab.tmp
+          - cat /tmp/fstab.tmp > /etc/fstab
+        coreos:
+          units:
+          - name: systemd-sysctl.service
+            command: restart
+    timeout: 300
+    wait: true
+
