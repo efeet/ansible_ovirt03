@@ -1,6 +1,6 @@
 ---
 - name: Execute script to get Hypervisor with more Free Mem.
-  local_action: script /var/lib/awx/projects/RHV_VMs/rhv_vms_auto_resources/get_info_api.bash
+  local_action: script /tmp/get_info_api.bash
 
 - name: "Create VM {{ current_vm.name }}"
   ovirt_vm:
