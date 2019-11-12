@@ -13,7 +13,7 @@
     storage_domain: "{{ lookup('file', '/var/lib/awx/projects/RHV_VMs/rhv_vms_auto_resources/best_storage.yml') }}"
     template: "{{ current_vm.template }}"
     memory: "{{ current_vm.memory|int * 1024 }}MiB"
-    memory_max: "{{ current_vm.memory }}"
+    memory_max: "{{ ((current_vm.memory |int * 1024)|int * 1.5)|int|abs }}MiB"
     memory_guaranteed: "1MiB"
     cpu_cores: "{{ current_vm.cores }}"
     #cpu_sockets: "{{ current_vm.sockets | default(current_vm.profile.sockets) | default(omit) }}"
