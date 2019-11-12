@@ -19,7 +19,8 @@
     #cpu_sockets: "{{ current_vm.sockets | default(current_vm.profile.sockets) | default(omit) }}"
     comment: "{{ current_vm.comment }}"
     type: server
-    operating_system: rhel_7x64
+    #Deshabilitar para LAB
+    #operating_system: rhel_7x64
     high_availability: true
     nics:
       - name: nic1
